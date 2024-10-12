@@ -1,5 +1,19 @@
 # cp2024spb-rzd
 
+[Преобразование каталога товаров ОАО «РЖД»](https://lk.hacks-ai.ru/event/1077380/case)
+
+сабмит находится в /docs/submit.csv
+
+1.	Ссылка на открытый репозиторий с исходным кодом https://github.com/gulldan/cp2024spb-rzd
+2.	Ссылка на презентацию - https://docs.google.com/presentation/d/1hzzM9Y2gU5PSEd1upsWY7tCjNrhvxDxbYL_81JLZLf8 
+3.	Ссылка на прототип (ссылка на гит/ссылка на облако) - https://github.com/gulldan/cp2024spb-rzd 
+4.  Ссылка на иноформацию по кейсу https://lodmedia.hb.bizmrg.com/cases/1144863/%D0%A0%D0%96%D0%94_%D0%9A%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3.zip
+5.	Ссылка на датасет https://lodmedia.hb.bizmrg.com/case_files/1144863/train_dataset_train%20%D1%80%D0%B6%D0%B4%20%D0%BA%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3.zip
+
+### Технический отчет
+
+TBD
+
 ## Parser
 
 ### **Пошаговый алгоритм работы парсера**
