@@ -50,7 +50,7 @@ characteristic_keywords = [
     "Описание",
 ]
 
-file_lock = asyncio.Lock()  # Глобальный замок для операций с файлами
+file_lock = asyncio.Lock()  # Глобальный лок для операций с файлами
 
 
 async def extract_structured_data(page, search_query):  # noqa: C901
@@ -178,7 +178,7 @@ def merge_characteristics(characteristics_list, threshold=75):
             for m_key in merged_characteristics:
                 similarity = fuzz.ratio(key, m_key)
                 if similarity >= threshold:
-                    merged_characteristics[m_key] = value  # Обновляем значение
+                    merged_characteristics[m_key] = value
                     found = True
                     break
             if not found:
@@ -187,11 +187,11 @@ def merge_characteristics(characteristics_list, threshold=75):
 
 
 async def scrape_search_results(search_query: str, code: str, num_results: int = 7):  # noqa: C901, PLR0915
-    """Выполняет поиск по Google по списку сайтов и собирает контент первых результатов.
+    """Выполняет поиск по Google по списку сайтов и собирает контент первых результатов n.
 
     Args:
-        search_query (str): Поисковый запрос для выполнения.
-        code (str): Уникальный код для именования файлов.
+        search_query (str): Поисковый запрос.
+        code (str): Уникальный код для именования файлов, код МТР.
         num_results (int, optional): Количество ссылок, которые будут собраны. По умолчанию 7.
 
     Returns:
@@ -233,7 +233,7 @@ async def scrape_search_results(search_query: str, code: str, num_results: int =
             )
 
             async def get_links(search_query, use_site_filters=True):
-                # Формируем строку с использованием оператора "OR" для поиска по нескольким сайтам
+                # Формируем строку для поиска по нескольким сайтам
                 if use_site_filters:
                     site_query = " OR ".join([f"site:{url}" for url in urls])
                     full_query = f"{site_query} {search_query}"
