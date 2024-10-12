@@ -1,0 +1,60 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: check-case-conflict
+    -   id: check-json
+    -   id: check-symlinks
+    -   id: check-yaml
+    -   id: check-toml
+    -   id: destroyed-symlinks
+    -   id: end-of-file-fixer
+    -   id: fix-byte-order-marker
+    -   id: fix-encoding-pragma
+        args: [--remove]
+    -   id: mixed-line-ending
+        args: [--fix=lf]
+    -   id: requirements-txt-fixer
+    -   id: trailing-whitespace
+    -   id: detect-private-key
+# -   repo: https://github.com/psf/black
+#     rev: 22.10.0
+#     hooks:
+#     -   id: black
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.6.9
+    hooks:
+      # Run the linter.
+      - id: ruff
+      # Run the formatter.
+      - id: ruff-format
+# - repo: https://github.com/PyCQA/bandit
+#   rev: '1.7.7' # Update me!
+#   hooks:
+#   - id: bandit
+- repo: https://github.com/kynan/nbstripout
+  rev: 0.7.1
+  hooks:
+    - id: nbstripout
+- repo: https://github.com/nbQA-dev/nbQA
+  rev: 1.8.7
+  hooks:
+    - id: nbqa-ruff  # optional, only if you're using Jupytext
+    - id: nbqa-pyupgrade
+      args: ["--py311-plus"]
+    - id: nbqa-isort
+      args: ["--float-to-top"]
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.19.3
+  hooks:
+    - id: gitleaks
+- repo: https://github.com/shssoichiro/oxipng
+  rev: v9.1.2
+  hooks:
+    - id: oxipng
+      args: ["-o", "4", "--strip", "safe", "--alpha"]
+- repo: https://gitlab.com/codementors/pre-commit/add-issue-number-to-conventional-commit
+  rev: 1.0.2
+  hooks:
+    - id: add-issue-number
