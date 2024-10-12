@@ -1,0 +1,6 @@
+rapidfuzz
+ujson
+playwright
+git+https://github.com/Mattwmaster58/playwright_stealth
+aiofiles
+polars

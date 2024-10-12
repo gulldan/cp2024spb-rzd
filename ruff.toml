@@ -1,0 +1,45 @@
+lint.select = ["ALL"]
+
+lint.ignore = ["RUF001","RUF002","RUF003","G004","ANN001","ANN101","ANN201", "ANN202", "BLE001", "PD901", "FBT002",
+"D100", "D101","D102", "D103", "D107","TRY201", "COM812", "ISC001", "PTH", "S311", "TRY401"]
+
+line-length = 130
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "pypackages",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    ".idea",
+    "pycahe",
+    "test",
+    "aij_*"
+]
+
+# Assume Python 3.11.
+target-version = "py311"
+
+lint.unfixable = ["RUF003","RUF001","RUF010", "G004","TRY003","EM101","E712","ERA001", "RET504"]
+# fixable = ["Q"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+# Use single quotes for non-triple-quoted strings.
+quote-style = "double"
