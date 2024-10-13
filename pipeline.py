@@ -1,23 +1,22 @@
-from tqdm import tqdm
-import polars as pl
-from torch import Tensor
-import torch
-from transformers import AutoModel, AutoTokenizer
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import json
+import warnings
+
 import joblib
 import numpy as np
-from sklearn.impute import KNNImputer
+import polars as pl
+import torch
 from sklearn.cluster import HDBSCAN
-import warnings
-import json
+from sklearn.impute import KNNImputer
+from torch import Tensor
+from tqdm import tqdm
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 warnings.filterwarnings("ignore")
 
 
 class ClusterPipe:
-    def __init__(self, mtr_path: str, labels_path: str, model_name: str = 'intfloat/multilingual-e5-small'):
-        """
-        Initialize the Pipeline with paths to the MTR and labels datasets, and the model name.
+    def __init__(self, mtr_path: str, labels_path: str, model_name: str = "intfloat/multilingual-e5-small") -> None:
+        """Initialize the Pipeline with paths to the MTR and labels datasets, and the model name.
 
         Args:
             mtr_path (str): Path to the MTR dataset.
@@ -32,33 +31,28 @@ class ClusterPipe:
         if torch.cuda.device_count() > 1:
             print(f"Using {torch.cuda.device_count()} GPUs!")
             self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1, 2, 3])
-        self.model.to('cuda')
+        self.model.to("cuda")
 
     def load_data(self) -> None:
-        """
-        Load the MTR and labels datasets from the specified paths.
-        """
+        """Load the MTR and labels datasets from the specified paths."""
         self.mtr = pl.read_parquet(self.mtr_path)
         self.labels = pl.read_parquet(self.labels_path)
         self.data = self.mtr[["код СКМТР", "Наименование"]].join(self.labels, on="код СКМТР")
 
     def prepare_texts(self) -> None:
-        """
-        Prepare the texts for embedding by adding a prefix.
-        """
+        """Prepare the texts for embedding by adding a prefix."""
         self.texts = ["passage: " + text for text in self.data["Наименование"].to_numpy()]
 
     def get_embeddings(self, batch_size: int = 128) -> None:
-        """
-        Generate embeddings for the given texts in batches.
+        """Generate embeddings for the given texts in batches.
 
         Args:
             batch_size (int): Number of texts to process in each batch.
         """
         all_embeddings: list[Tensor] = []
         for i in tqdm(range(0, len(self.texts), batch_size)):
-            batch_texts = self.texts[i:i + batch_size]
-            inputs = self.tokenizer(batch_texts, return_tensors='pt', padding=True, truncation=True).to('cuda')
+            batch_texts = self.texts[i : i + batch_size]
+            inputs = self.tokenizer(batch_texts, return_tensors="pt", padding=True, truncation=True).to("cuda")
             with torch.no_grad():
                 outputs = self.model(**inputs)
             embeddings = outputs.last_hidden_state[:, 0, :]
@@ -66,8 +60,7 @@ class ClusterPipe:
         self.embeddings = torch.cat(all_embeddings, dim=0)
 
     def save_embeddings(self, output_path: str) -> None:
-        """
-        Save the embeddings to a Parquet file.
+        """Save the embeddings to a Parquet file.
 
         Args:
             output_path (str): Path to save the embeddings.
@@ -76,8 +69,7 @@ class ClusterPipe:
         df.write_parquet(output_path)
 
     def load_embeddings(self, input_path: str) -> None:
-        """
-        Load the embeddings from a Parquet file.
+        """Load the embeddings from a Parquet file.
 
         Args:
             input_path (str): Path to load the embeddings from.
@@ -85,19 +77,15 @@ class ClusterPipe:
         self.embeddings = pl.read_parquet(input_path).to_numpy()
 
     def prepare_for_clustering(self) -> None:
-        """
-        Prepare the data for clustering by adding the "ОКПД2" and "код СКМТР" columns.
-        """
+        """Prepare the data for clustering by adding the "ОКПД2" and "код СКМТР" columns."""
         self.df_for_clustering = pl.DataFrame(self.embeddings).with_columns(
-            self.mtr["ОКПД2"].alias("ОКПД2"),
-            self.mtr["код СКМТР"].alias("код СКМТР")
+            self.mtr["ОКПД2"].alias("ОКПД2"), self.mtr["код СКМТР"].alias("код СКМТР")
         )
         self.df_for_clustering_null = self.df_for_clustering.filter(pl.col("ОКПД2").is_null())
         self.df_for_clustering_not_null = self.df_for_clustering.filter(~(pl.col("ОКПД2").is_null()))
 
     def encode_labels(self, encoder_path: str) -> None:
-        """
-        Encode the "ОКПД2" column using a label encoder.
+        """Encode the "ОКПД2" column using a label encoder.
 
         Args:
             encoder_path (str): Path to the label encoder.
@@ -108,17 +96,16 @@ class ClusterPipe:
         )
         self.all_data_encoded = pl.concat(
             [
-                self.df_encoded, self.df_for_clustering_null.with_columns(
-                pl.Series(np.array([None] * len(self.df_for_clustering_null), dtype=np.float64)).alias("ОКПД2")
-            )
+                self.df_encoded,
+                self.df_for_clustering_null.with_columns(
+                    pl.Series(np.array([None] * len(self.df_for_clustering_null), dtype=np.float64)).alias("ОКПД2")
+                ),
             ],
-            how="vertical"
+            how="vertical",
         )
 
     def impute_missing_values(self) -> None:
-        """
-        Impute missing values using KNNImputer.
-        """
+        """Impute missing values using KNNImputer."""
         data = self.all_data_encoded.drop(["код СКМТР"]).to_numpy()
         imputer = KNNImputer(n_neighbors=1)
         self.data_imputed = imputer.fit_transform(data)
@@ -126,8 +113,7 @@ class ClusterPipe:
         self.df_imputed = pl.concat([self.df_imputed, self.all_data_encoded[["код СКМТР"]]], how="horizontal")
 
     def cluster_data(self, output_path: str, encoder_path: str) -> None:
-        """
-        Cluster the data for each unique "ОКПД2" value and save the clustered data to a Parquet file.
+        """Cluster the data for each unique "ОКПД2" value and save the clustered data to a Parquet file.
 
         Args:
             output_path (str): Path to save the clustered data.
@@ -140,9 +126,7 @@ class ClusterPipe:
             features = group_df.drop(["column_384", "код СКМТР"])
 
             if len(features) < 2:
-                group_df = group_df[["column_384", "код СКМТР"]].with_columns(
-                    pl.Series([-1] * len(features)).alias("cluster")
-                )
+                group_df = group_df[["column_384", "код СКМТР"]].with_columns(pl.Series([-1] * len(features)).alias("cluster"))
             else:
                 if len(features) > 1000:
                     print(len(features))
@@ -151,25 +135,17 @@ class ClusterPipe:
                     pl.Series(hdbscan.fit_predict(features)).alias("cluster")
                 )
 
-            if c == 0:
-                full_data = group_df
-            else:
-                full_data = pl.concat([full_data, group_df], how="vertical")
+            full_data = group_df if c == 0 else pl.concat([full_data, group_df], how="vertical")
 
         full_data.write_parquet(output_path)
 
         le = joblib.load(encoder_path)
         self.full_data_clustered = full_data.with_columns(
-            pl.Series(
-                le.inverse_transform(
-                    list(map(lambda x: int(x), full_data["column_384"].to_list()))
-                )
-            ).alias("ОКПД2")
+            pl.Series(le.inverse_transform([int(x) for x in full_data["column_384"].to_list()])).alias("ОКПД2")
         ).drop(["column_384"])
 
     def save_clustered_data(self, output_path: str) -> None:
-        """
-        Save the clustered data to a Parquet file.
+        """Save the clustered data to a Parquet file.
 
         Args:
             output_path (str): Path to save the clustered data.
@@ -177,8 +153,7 @@ class ClusterPipe:
         self.full_data_clustered.join(self.mtr.drop(["ОКПД2"]), on="код СКМТР").write_parquet(output_path)
 
     def load_clustered_data(self, input_path: str) -> None:
-        """
-        Load the clustered data from a Parquet file.
+        """Load the clustered data from a Parquet file.
 
         Args:
             input_path (str): Path to load the clustered data from.
@@ -186,8 +161,7 @@ class ClusterPipe:
         self.full_data_clustered = pl.read_parquet(input_path).fill_null("")
 
     def sample_cluster(self, cluster_num: int, okpd_identifier: str) -> pl.DataFrame:
-        """
-        Filter the clustered data to return a DataFrame containing only the rows that belong to a specific cluster and OKPD2 identifier.
+        """Filter the clustered data to return a DataFrame containing only the rows that belong to a specific cluster and OKPD2 identifier.
 
         Args:
             cluster_num (int): The cluster number to filter by.
@@ -196,27 +170,23 @@ class ClusterPipe:
         Returns:
             pl.DataFrame: A DataFrame containing the rows that match the specified cluster number and OKPD2 identifier.
         """
-        return self.full_data_clustered.filter(
-            (pl.col("cluster") == cluster_num) & (pl.col("ОКПД2") == okpd_identifier)
-        )
+        return self.full_data_clustered.filter((pl.col("cluster") == cluster_num) & (pl.col("ОКПД2") == okpd_identifier))
 
 
 class LLM:
-    def __init__(self, model_name: str):
-        """
-        Initialize the LLMParamsFields class with the specified model name.
+    def __init__(self, model_name: str) -> None:
+        """Initialize the LLMParamsFields class with the specified model name.
 
         Args:
             model_name (str): The name of the LLM model to load.
         """
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', torch_dtype=torch.float16)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.float16)
         self.model.eval()
 
     def prepare_prompt(self, messages: list[dict]) -> str:
-        """
-        Prepare the prompt in the format required by the Gemma-2 model.
+        """Prepare the prompt in the format required by the Gemma-2 model.
 
         Args:
             messages (List[dict]): A list of messages with roles and content.
@@ -226,19 +196,18 @@ class LLM:
         """
         prompt = ""
         for message in messages:
-            role = message['role']
-            content = message['content']
-            if role == 'system':
+            role = message["role"]
+            content = message["content"]
+            if role == "system":
                 prompt += "<start_of_turn>system\n" + content + "<end_of_turn>\n"
-            elif role == 'user':
+            elif role == "user":
                 prompt += "<start_of_turn>user\n" + content + "<end_of_turn>\n"
-            elif role == 'model':
+            elif role == "model":
                 prompt += "<start_of_turn>model\n" + content
         return prompt
 
     def generate_response(self, prompt: str, max_new_tokens: int = 200) -> str:
-        """
-        Generate a response from the LLM model based on the given prompt.
+        """Generate a response from the LLM model based on the given prompt.
 
         Args:
             prompt (str): The input prompt.
@@ -247,21 +216,20 @@ class LLM:
         Returns:
             str: The generated response.
         """
-        input_ids = self.tokenizer(prompt, return_tensors='pt').input_ids.to(self.model.device)
+        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.model.device)
         with torch.no_grad():
             output_ids = self.model.generate(
                 input_ids=input_ids,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
                 temperature=0.7,
-                pad_token_id=self.tokenizer.eos_token_id
+                pad_token_id=self.tokenizer.eos_token_id,
             )
-        output = self.tokenizer.decode(output_ids[0][input_ids.shape[-1]:], skip_special_tokens=True)
+        output = self.tokenizer.decode(output_ids[0][input_ids.shape[-1] :], skip_special_tokens=True)
         return output.strip()
 
     def process_message(self, text: str, system_prompt: str) -> str:
-        """
-        Process a message to generate a response from the LLM model.
+        """Process a message to generate a response from the LLM model.
 
         Args:
             text (str): The user input text.
@@ -270,18 +238,14 @@ class LLM:
         Returns:
             str: The generated response.
         """
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text}
-        ]
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": text}]
 
         prompt = self.prepare_prompt(messages)
         return self.generate_response(prompt)
 
     class PipelineManager:
-        def __init__(self, cluster_pipe: ClusterPipe, llm: LLM):
-            """
-            Initialize the PipelineManager with paths to the MTR and labels datasets, and the model names.
+        def __init__(self, cluster_pipe: ClusterPipe, llm: LLM) -> None:
+            """Initialize the PipelineManager with paths to the MTR and labels datasets, and the model names.
 
             Args:
                 llm (LLM)
@@ -314,14 +278,13 @@ class LLM:
             """
 
             products = cluster["Наименование"].sample(fraction=1).to_list()[:16]
-            cluster_name = \
-                self.llm.process_message(system_promt_cluster_name, user_promt_cluster_name.format(products)).split(
-                    "\n")[1]
+            cluster_name = self.llm.process_message(system_promt_cluster_name, user_promt_cluster_name.format(products)).split(
+                "\n"
+            )[1]
             return cluster_name
 
         def gen_json_str_from_params_list(self, params_list: list[str]) -> str:
-            """
-            Generates a JSON string from a list of parameter names.
+            """Generates a JSON string from a list of parameter names.
 
             Args:
             params_list (list of str): List of parameter names.
@@ -335,7 +298,9 @@ class LLM:
             return json_str
 
         def parse_product_properties(self, row: dict, cluster_properties: str, cluster_name: str) -> str:
-            system_promt_extract_params_from = """Ты — Сайга, русскоязычный ассистент. Ты извлекаешь свойства товаров из описания параметров."""
+            system_promt_extract_params_from = (
+                """Ты — Сайга, русскоязычный ассистент. Ты извлекаешь свойства товаров из описания параметров."""
+            )
             user_promt_struct_params = """Извлеки свойства товара из описания параметров товара следующей группы {}.
 
             ИНСТРУКЦИИ:
@@ -354,25 +319,23 @@ class LLM:
             {}
             """
 
-            json_str_from_params_list = self.gen_json_str_from_params_list(
-                cluster_properties.split(";")
-            )
+            json_str_from_params_list = self.gen_json_str_from_params_list(cluster_properties.split(";"))
 
             params_raw = f"{row['Наименование']} {row['Маркировка']}: {row['Параметры']}"
 
             params_parsed = self.llm.process_message(
                 user_promt_struct_params.format(cluster_name, json_str_from_params_list, params_raw),
-                system_promt_extract_params_from
+                system_promt_extract_params_from,
             )
-            start_index = params_parsed.find('{')
-            end_index = params_parsed.rfind('}') + 1
+            start_index = params_parsed.find("{")
+            end_index = params_parsed.rfind("}") + 1
             cleaned_json_string = params_parsed[start_index:end_index]
             return cleaned_json_string
 
-        def get_cluster_properties(self,
-                                   cluster: pl.DataFrame,
-                                   cluster_name: str) -> str:
-            system_promt_group_parameters = """Ты — Сайга, русскоязычный ассистент. Ты помогаешь придумывать набор параметров для описания группы товаров"""
+        def get_cluster_properties(self, cluster: pl.DataFrame, cluster_name: str) -> str:
+            system_promt_group_parameters = (
+                """Ты — Сайга, русскоязычный ассистент. Ты помогаешь придумывать набор параметров для описания группы товаров"""
+            )
             user_promt_group_parameters = """Выдели из описаний набор параметров, которые позволят единым образом описать товары из группы с названием "{}".
 
             ИНСТРУКЦИИ:
@@ -396,18 +359,19 @@ class LLM:
             ПРИМЕР ВЫВОДА:
             длина; ширина; высота; цвет
             """
-            if len(cluster) > 2:
-                products = cluster.sample(fraction=1).sample(len(cluster) // 2)
-            else:
-                products = cluster.head(1)
+            products = cluster.sample(fraction=1).sample(len(cluster) // 2) if len(cluster) > 2 else cluster.head(1)
 
-            products = "\n".join([
-                name + " " + params + ": " + mark for name, params, mark in zip(
-                    products["Наименование"].to_numpy(),
-                    products["Маркировка"].to_numpy(),
-                    products["Параметры"].to_numpy(),
-                )
-            ])
+            products = "\n".join(
+                [
+                    name + " " + params + ": " + mark
+                    for name, params, mark in zip(
+                        products["Наименование"].to_numpy(),
+                        products["Маркировка"].to_numpy(),
+                        products["Параметры"].to_numpy(),
+                        strict=False,
+                    )
+                ]
+            )
 
             properties = self.llm.process_message(
                 user_promt_group_parameters.format(cluster_name, products), system_promt_group_parameters
@@ -416,8 +380,7 @@ class LLM:
             return properties
 
         def cluster_process(self, cluster_sample: pl.DataFrame) -> pl.DataFrame:
-            """
-            Process a cluster sample to generate cluster name, properties, and parse product properties.
+            """Process a cluster sample to generate cluster name, properties, and parse product properties.
 
             Args:
                 cluster_sample (pl.DataFrame): DataFrame containing the cluster data.
@@ -429,8 +392,7 @@ class LLM:
             cluster_prop = self.get_cluster_properties(cluster_sample, cluster_name)
 
             answer = cluster_sample.with_columns(
-                pl.lit(cluster_name).alias("cluster_name"),
-                pl.lit(cluster_prop).alias("cluster_properties")
+                pl.lit(cluster_name).alias("cluster_name"), pl.lit(cluster_prop).alias("cluster_properties")
             )
 
             items_jsons = []
@@ -438,9 +400,7 @@ class LLM:
                 item_prop = self.parse_product_properties(item, cluster_prop, cluster_name)
                 items_jsons.append(item_prop)
 
-            group = answer.with_columns(
-                pl.Series(items_jsons).alias("parsed_item_properties")
-            )
+            group = answer.with_columns(pl.Series(items_jsons).alias("parsed_item_properties"))
 
             products = []
             for row in group.iter_rows(named=True):
@@ -456,8 +416,7 @@ class LLM:
             return pl.DataFrame(products).fill_null("NODATA")
 
         def process_okpd(self, okpd_ident: str) -> pl.DataFrame:
-            """
-            Process all clusters for a given OKPD2 identifier.
+            """Process all clusters for a given OKPD2 identifier.
 
             Args:
                 okpd_ident (str): The OKPD2 identifier to process.
@@ -465,9 +424,7 @@ class LLM:
             Returns:
                 pl.DataFrame: DataFrame containing the processed clusters for the given OKPD2 identifier.
             """
-            okpd_df = self.cluster_pipe.full_data_clustered.filter(
-                pl.col("ОКПД2") == okpd_ident
-            )
+            okpd_df = self.cluster_pipe.full_data_clustered.filter(pl.col("ОКПД2") == okpd_ident)
 
             unique_clusters = okpd_df["cluster"].unique()
 
@@ -475,9 +432,6 @@ class LLM:
                 cluster_sample = self.cluster_pipe.sample_cluster(cluster_id, okpd_ident)
                 processed_cluster = self.cluster_process(cluster_sample)
 
-                if c == 0:
-                    full_data = processed_cluster
-                else:
-                    full_data = pl.concat([full_data, processed_cluster], how="vertical")
+                full_data = processed_cluster if c == 0 else pl.concat([full_data, processed_cluster], how="vertical")
 
             return full_data
