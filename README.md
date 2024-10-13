@@ -10,10 +10,131 @@
 4.  Ссылка на иноформацию по кейсу https://lodmedia.hb.bizmrg.com/cases/1144863/%D0%A0%D0%96%D0%94_%D0%9A%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3.zip
 5.	Ссылка на датасет https://lodmedia.hb.bizmrg.com/case_files/1144863/train_dataset_train%20%D1%80%D0%B6%D0%B4%20%D0%BA%D0%B0%D1%82%D0%B0%D0%BB%D0%BE%D0%B3.zip
 
-### Технический отчет
+# Технический отчет
 
-TBD
+# Пошаговый алгоритм работы с классами ClusterPipe и LLM
 
+## Введение
+
+Этот документ предоставляет пошаговый алгоритм работы с классами `ClusterPipe` и `LLM`, которые используются для кластеризации и генерации текстовых ответов на основе вложений и языковых моделей.
+
+## Пошаговый алгоритм работы
+
+### 1. Инициализация классов
+
+1. **Инициализация ClusterPipe**:
+   - Создайте экземпляр класса `ClusterPipe`, указав пути к наборам данных MTR и labels, а также имя предобученной модели.
+   - Пример: `cluster_pipe = ClusterPipe(mtr_path='path/to/mtr.parquet', labels_path='path/to/labels.parquet', model_name='intfloat/multilingual-e5-small')`
+
+2. **Инициализация LLM**:
+   - Создайте экземпляр класса `LLM`, указав имя модели.
+   - Пример: `llm = LLM(model_name='model_name')`
+
+### 2. Загрузка данных
+
+1. **Загрузка данных MTR и labels**:
+   - Вызовите метод `load_data` у экземпляра `ClusterPipe` для загрузки данных.
+   - Пример: `cluster_pipe.load_data()`
+
+### 3. Подготовка текстов для вложений
+
+1. **Подготовка текстов**:
+   - Вызовите метод `prepare_texts` у экземпляра `ClusterPipe` для подготовки текстов.
+   - Пример: `cluster_pipe.prepare_texts()`
+
+### 4. Генерация вложений
+
+1. **Генерация вложений**:
+   - Вызовите метод `get_embeddings` у экземпляра `ClusterPipe` для генерации вложений.
+   - Пример: `cluster_pipe.get_embeddings(batch_size=128)`
+
+### 5. Сохранение и загрузка вложений
+
+1. **Сохранение вложений**:
+   - Вызовите метод `save_embeddings` у экземпляра `ClusterPipe` для сохранения вложений в файл Parquet.
+   - Пример: `cluster_pipe.save_embeddings(output_path='path/to/embeddings.parquet')`
+
+2. **Загрузка вложений**:
+   - Вызовите метод `load_embeddings` у экземпляра `ClusterPipe` для загрузки вложений из файла Parquet.
+   - Пример: `cluster_pipe.load_embeddings(input_path='path/to/embeddings.parquet')`
+
+### 6. Подготовка данных для кластеризации
+
+1. **Подготовка данных**:
+   - Вызовите метод `prepare_for_clustering` у экземпляра `ClusterPipe` для подготовки данных к кластеризации.
+   - Пример: `cluster_pipe.prepare_for_clustering()`
+
+### 7. Кодирование меток
+
+1. **Кодирование меток**:
+   - Вызовите метод `encode_labels` у экземпляра `ClusterPipe` для кодирования меток.
+   - Пример: `cluster_pipe.encode_labels(encoder_path='path/to/encoder.pkl')`
+
+### 8. Заполнение пропущенных значений
+
+1. **Заполнение пропущенных значений**:
+   - Вызовите метод `impute_missing_values` у экземпляра `ClusterPipe` для заполнения пропущенных значений.
+   - Пример: `cluster_pipe.impute_missing_values()`
+
+### 9. Кластеризация данных
+
+1. **Кластеризация данных**:
+   - Вызовите метод `cluster_data` у экземпляра `ClusterPipe` для кластеризации данных.
+   - Пример: `cluster_pipe.cluster_data(output_path='path/to/clustered_data.parquet', encoder_path='path/to/encoder.pkl')`
+
+### 10. Сохранение и загрузка сгруппированных данных
+
+1. **Сохранение сгруппированных данных**:
+   - Вызовите метод `save_clustered_data` у экземпляра `ClusterPipe` для сохранения сгруппированных данных в файл Parquet.
+   - Пример: `cluster_pipe.save_clustered_data(output_path='path/to/clustered_data.parquet')`
+
+2. **Загрузка сгруппированных данных**:
+   - Вызовите метод `load_clustered_data` у экземпляра `ClusterPipe` для загрузки сгруппированных данных из файла Parquet.
+   - Пример: `cluster_pipe.load_clustered_data(input_path='path/to/clustered_data.parquet')`
+
+### 11. Фильтрация кластеров
+
+1. **Фильтрация кластеров**:
+   - Вызовите метод `sample_cluster` у экземпляра `ClusterPipe` для фильтрации данных по определенному кластеру и идентификатору OKPD2.
+   - Пример: `cluster_data = cluster_pipe.sample_cluster(cluster_num=1, okpd_identifier='identifier')`
+
+### 12. Генерация текстовых ответов с использованием LLM
+
+1. **Подготовка промпта**:
+   - Вызовите метод `prepare_prompt` у экземпляра `LLM` для подготовки промпта.
+   - Пример: `prompt = llm.prepare_prompt(messages=[{"role": "system", "content": "system_prompt"}, {"role": "user", "content": "user_prompt"}])`
+
+2. **Генерация ответа**:
+   - Вызовите метод `generate_response` у экземпляра `LLM` для генерации ответа.
+   - Пример: `response = llm.generate_response(prompt)`
+
+3. **Обработка сообщения**:
+   - Вызовите метод `process_message` у экземпляра `LLM` для обработки сообщения и генерации ответа.
+   - Пример: `response = llm.process_message(text='user_input', system_prompt='system_prompt')`
+
+### 13. Использование PipelineManager
+
+1. **Инициализация PipelineManager**:
+   - Создайте экземпляр класса `PipelineManager`, указав экземпляры `ClusterPipe` и `LLM`.
+   - Пример: `pipeline_manager = PipelineManager(cluster_pipe=cluster_pipe, llm=llm)`
+
+2. **Получение кластера**:
+   - Вызовите метод `get_cluster` у экземпляра `PipelineManager` для получения кластера.
+   - Пример: `cluster = pipeline_manager.get_cluster(cluster_num=1, okpd_identifier='identifier')`
+
+3. **Получение названия кластера**:
+   - Вызовите метод `get_cluster_name` у экземпляра `PipelineManager` для получения названия кластера.
+   - Пример: `cluster_name = pipeline_manager.get_cluster_name(cluster)`
+
+4. **Обработка кластера**:
+   - Вызовите метод `cluster_process` у экземпляра `PipelineManager` для обработки кластера.
+   - Пример: `processed_cluster = pipeline_manager.cluster_process(cluster_sample)`
+
+5. **Обработка OKPD**:
+   - Вызовите метод `process_okpd` у экземпляра `PipelineManager` для обработки всех кластеров для заданного идентификатора OKPD2.
+   - Пример: `processed_data = pipeline_manager.process_okpd(okpd_ident='identifier')`
+
+Этот пошаговый алгоритм охватывает основные шаги работы с классами `ClusterPipe` и `LLM`, а также с классом `PipelineManager`, который интегрирует их функциональность.
 ## Parser
 
 ### **Пошаговый алгоритм работы парсера**
