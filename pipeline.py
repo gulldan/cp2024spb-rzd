@@ -243,195 +243,225 @@ class LLM:
         prompt = self.prepare_prompt(messages)
         return self.generate_response(prompt)
 
-    class PipelineManager:
-        def __init__(self, cluster_pipe: ClusterPipe, llm: LLM) -> None:
-            """Initialize the PipelineManager with paths to the MTR and labels datasets, and the model names.
 
-            Args:
-                llm (LLM)
-                cluster_pipe (ClusterPipe)
-            """
-            self.cluster_pipe = cluster_pipe
-            self.llm = llm
+class PipelineManager:
+    def __init__(self, cluster_pipe: ClusterPipe, llm: LLM) -> None:
+        """Initialize the PipelineManager with paths to the MTR and labels datasets, and the model names.
 
-        def get_cluster(self, cluster_num: int, okpd_identifier: str) -> pl.DataFrame:
-            return self.cluster_pipe.sample_cluster(cluster_num, okpd_identifier)
+        Args:
+            llm (LLM)
+            cluster_pipe (ClusterPipe)
+        """
+        self.cluster_pipe = cluster_pipe
+        self.llm = llm
 
-        def get_cluster_name(self, cluster: pl.DataFrame) -> str:
-            system_promt_cluster_name = """Ты русскоязычный ассистент. Ты помогаешь придумывать название для группы товаров"""
-            user_promt_cluster_name = """Придуймай обобщающее название для группы товаров.
-            ИНСТРУКЦИИ:
-            1. Название должно быть четким и напрямую связанным с группой товаров.
-            2. Формат названия: существительное (существительное/прилагательное).
-            3. Верни только название в описанном формате.
-            ВХОДНЫЕ ДАННЫЕ:
-            Наименования единиц товаров входящих в группу. Каждое наименование написано с новой строчки.
-            Наименования товаров:
-            {}.
-            ФОРМАТЫ ВЫВОДА:
-            существительное
-            существительное прилагательное
-            существительное (прилагательные)
-            ПРИМЕРЫ ВЫВОДА:
-            шланги (садовые)
-            камеры ночные
-            """
+    def get_cluster(self, cluster_num: int, okpd_identifier: str) -> pl.DataFrame:
+        return self.cluster_pipe.sample_cluster(cluster_num, okpd_identifier)
 
-            products = cluster["Наименование"].sample(fraction=1).to_list()[:16]
-            cluster_name = self.llm.process_message(system_promt_cluster_name, user_promt_cluster_name.format(products)).split(
-                "\n"
-            )[1]
-            return cluster_name
+    def get_cluster_name(self, cluster: pl.DataFrame) -> str:
+        system_promt_cluster_name = """Ты русскоязычный ассистент. Ты помогаешь придумывать название для группы товаров"""
+        user_promt_cluster_name = """Придуймай обобщающее название для группы товаров.
+        ИНСТРУКЦИИ:
+        1. Название должно быть четким и напрямую связанным с группой товаров.
+        2. Формат названия: существительное (существительное/прилагательное).
+        3. Верни только название в описанном формате.
+        ВХОДНЫЕ ДАННЫЕ:
+        Наименования единиц товаров входящих в группу. Каждое наименование написано с новой строчки.
+        Наименования товаров:
+        {}.
+        ФОРМАТЫ ВЫВОДА:
+        существительное
+        существительное прилагательное
+        существительное (прилагательные)
+        ПРИМЕРЫ ВЫВОДА:
+        шланги (садовые)
+        камеры ночные
+        """
 
-        def gen_json_str_from_params_list(self, params_list: list[str]) -> str:
-            """Generates a JSON string from a list of parameter names.
+        products = cluster["Наименование"].sample(fraction=1).to_list()[:16]
+        cluster_name = self.llm.process_message(system_promt_cluster_name, user_promt_cluster_name.format(products)).split("\n")[
+            1
+        ]
+        return cluster_name
 
-            Args:
-            params_list (list of str): List of parameter names.
+    def gen_json_str_from_params_list(self, params_list: list[str]) -> str:
+        """Generates a JSON string from a list of parameter names.
 
-            Returns:
-            str: JSON string with parameters and their corresponding values.
-            """
-            params_dict = {param: f"value{i + 1}" for i, param in enumerate(params_list)}
-            json_str = json.dumps(params_dict, ensure_ascii=False, indent=4)
+        Args:
+        params_list (list of str): List of parameter names.
 
-            return json_str
+        Returns:
+        str: JSON string with parameters and their corresponding values.
+        """
+        params_dict = {param: f"value{i+1}" for i, param in enumerate(params_list)}
+        json_str = json.dumps(params_dict, ensure_ascii=False, indent=4)
 
-        def parse_product_properties(self, row: dict, cluster_properties: str, cluster_name: str) -> str:
-            system_promt_extract_params_from = (
-                """Ты — Сайга, русскоязычный ассистент. Ты извлекаешь свойства товаров из описания параметров."""
-            )
-            user_promt_struct_params = """Извлеки свойства товара из описания параметров товара следующей группы {}.
+        return json_str
 
-            ИНСТРУКЦИИ:
-            1. Извлекай параметры из описания в соответствии с определенной структурой. Данная структура представляет собой набор параметров в формате json.
-            2. Для каждого параметра из структуры найди соответсвующее ему значение в описании.
-            3. Если ты не можешь найти значение параметра в описании, то заполняй этот параметр значением NODATA, но только при действительном отсутствии параметра.
-            4. Выводи только json файл с точно такой же структурой и заполненными значениями параметров.
+    def parse_product_properties(self, row: dict, cluster_properties: str, cluster_name: str) -> str:
+        system_promt_extract_params_from = (
+            """Ты — Сайга, русскоязычный ассистент. Ты извлекаешь свойства товаров из описания параметров."""
+        )
+        user_promt_struct_params = """Извлеки свойства товара из описания параметров товара следующей группы {}.
 
-            СТРУКТУРА ПАРАМЕТРОВ И СТРУКТУРА ОТВЕТА:
-            json
-            {}
+        ИНСТРУКЦИИ:
+        1. Извлекай параметры из описания в соответствии с определенной структурой. Данная структура представляет собой набор параметров в формате json.
+        2. Для каждого параметра из структуры найди соответсвующее ему значение в описании.
+        3. Если ты не можешь найти значение параметра в описании, то заполняй этот параметр значением NODATA, но только при действительном отсутствии параметра.
+        4. Выводи только json файл с точно такой же структурой и заполненными значениями параметров.
 
-            Заполни ее значениями параметров из следующего текста.
+        СТРУКТУРА ПАРАМЕТРОВ И СТРУКТУРА ОТВЕТА:
+        json
+        {}
 
-            ОПИСАНИЕ ПАРАМЕТРОВ ТОВАРА:
-            {}
-            """
+        Заполни ее значениями параметров из следующего текста.
 
-            json_str_from_params_list = self.gen_json_str_from_params_list(cluster_properties.split(";"))
+        ОПИСАНИЕ ПАРАМЕТРОВ ТОВАРА:
+        {}
+        """
 
-            params_raw = f"{row['Наименование']} {row['Маркировка']}: {row['Параметры']}"
+        json_str_from_params_list = self.gen_json_str_from_params_list(cluster_properties.split(";"))
 
-            params_parsed = self.llm.process_message(
-                user_promt_struct_params.format(cluster_name, json_str_from_params_list, params_raw),
-                system_promt_extract_params_from,
-            )
-            start_index = params_parsed.find("{")
-            end_index = params_parsed.rfind("}") + 1
-            cleaned_json_string = params_parsed[start_index:end_index]
-            return cleaned_json_string
+        params_raw = f"{row['Наименование']} {row['Маркировка']}: {row['Параметры']}"
 
-        def get_cluster_properties(self, cluster: pl.DataFrame, cluster_name: str) -> str:
-            system_promt_group_parameters = (
-                """Ты — Сайга, русскоязычный ассистент. Ты помогаешь придумывать набор параметров для описания группы товаров"""
-            )
-            user_promt_group_parameters = """Выдели из описаний набор параметров, которые позволят единым образом описать товары из группы с названием "{}".
+        params_parsed = self.llm.process_message(
+            user_promt_struct_params.format(cluster_name, json_str_from_params_list, params_raw), system_promt_extract_params_from
+        )
+        start_index = params_parsed.find("{")
+        end_index = params_parsed.rfind("}") + 1
+        cleaned_json_string = params_parsed[start_index:end_index]
+        return cleaned_json_string
 
-            ИНСТРУКЦИИ:
-            1. Каждый параметр должен характеризоваться 1 словом.
-            2. Набор параметров должен состоять не более чем из 10 параметров. 
-            3. Параметры должны основываться исключительно на информации из описаний.
-            4. Если описания короткие и неинформативные, ты можешь вернуть менее, чем 10 параметров.
-            5. Старайся понять, какие параметры отражают предоставленные описания товаров.
-            6. Обращай внимание на цифры и предполагай, какой параметр они могут означать в данном контексте.
-            7. Делай параметры разнообразными и не дублирующими друг друга по смыслу.
-            8. Возвращай набор параметров как название каждого отдельного параметра с ; в качестве разделителя между ними.
-            9. Верни только набор параметров.
+    def get_cluster_properties(self, cluster: pl.DataFrame, cluster_name: str) -> str:
+        system_promt_group_parameters = (
+            """Ты — Сайга, русскоязычный ассистент. Ты помогаешь придумывать набор параметров для описания группы товаров"""
+        )
+        user_promt_group_parameters = """Выдели из описаний набор параметров, которые позволят единым образом описать товары из группы с названием "{}".
 
-            ВХОДНЫЕ ДАННЫЕ (ОПИСАНИЯ ТОВАРОВ):
-            Наименования и описания единиц товаров входящих в группу. Каждая пара будет начинаться с новой строчки и представлена в формате наименование товара: описание товара.
-            {}
+        ИНСТРУКЦИИ:
+        1. Каждый параметр должен характеризоваться 1 словом.
+        2. Набор параметров должен состоять не более чем из 10 параметров.
+        3. Параметры должны основываться исключительно на информации из описаний.
+        4. Если описания короткие и неинформативные, ты можешь вернуть менее, чем 10 параметров.
+        5. Старайся понять, какие параметры отражают предоставленные описания товаров.
+        6. Обращай внимание на цифры и предполагай, какой параметр они могут означать в данном контексте.
+        7. Делай параметры разнообразными и не дублирующими друг друга по смыслу.
+        8. Возвращай набор параметров как название каждого отдельного параметра с ; в качестве разделителя между ними.
+        9. Верни только набор параметров.
 
-            ФОРМАТ ВЫВОДА:
-            параметр 1; параметр 2; параметр 3; параметр n
+        ВХОДНЫЕ ДАННЫЕ (ОПИСАНИЯ ТОВАРОВ):
+        Наименования и описания единиц товаров входящих в группу. Каждая пара будет начинаться с новой строчки и представлена в формате наименование товара: описание товара.
+        {}
 
-            ПРИМЕР ВЫВОДА:
-            длина; ширина; высота; цвет
-            """
-            products = cluster.sample(fraction=1).sample(len(cluster) // 2) if len(cluster) > 2 else cluster.head(1)
+        ФОРМАТ ВЫВОДА:
+        параметр 1; параметр 2; параметр 3; параметр n
 
-            products = "\n".join(
-                [
-                    name + " " + params + ": " + mark
-                    for name, params, mark in zip(
-                        products["Наименование"].to_numpy(),
-                        products["Маркировка"].to_numpy(),
-                        products["Параметры"].to_numpy(),
-                        strict=False,
-                    )
-                ]
-            )
+        ПРИМЕР ВЫВОДА:
+        длина; ширина; высота; цвет
+        """
+        products = cluster.sample(fraction=1).sample(len(cluster) // 2) if len(cluster) > 2 else cluster.head(1)
 
-            properties = self.llm.process_message(
-                user_promt_group_parameters.format(cluster_name, products), system_promt_group_parameters
-            ).split("\n")[1]
+        products = "\n".join(
+            [
+                name + " " + params + ": " + mark
+                for name, params, mark in zip(
+                    products["Наименование"].to_numpy(),
+                    products["Маркировка"].to_numpy(),
+                    products["Параметры"].to_numpy(),
+                    strict=False,
+                )
+            ]
+        )
 
-            return properties
+        properties = self.llm.process_message(
+            user_promt_group_parameters.format(cluster_name, products), system_promt_group_parameters
+        ).split("\n")[1]
 
-        def cluster_process(self, cluster_sample: pl.DataFrame) -> pl.DataFrame:
-            """Process a cluster sample to generate cluster name, properties, and parse product properties.
+        return properties
 
-            Args:
-                cluster_sample (pl.DataFrame): DataFrame containing the cluster data.
+    def cluster_process(self, cluster_sample: pl.DataFrame) -> pl.DataFrame:
+        """Process a cluster sample to generate cluster name, properties, and parse product properties.
 
-            Returns:
-                pl.DataFrame: DataFrame with added cluster name, properties, and parsed item properties.
-            """
-            cluster_name = self.get_cluster_name(cluster_sample)
-            cluster_prop = self.get_cluster_properties(cluster_sample, cluster_name)
+        Args:
+            cluster_sample (pl.DataFrame): DataFrame containing the cluster data.
 
-            answer = cluster_sample.with_columns(
-                pl.lit(cluster_name).alias("cluster_name"), pl.lit(cluster_prop).alias("cluster_properties")
-            )
+        Returns:
+            pl.DataFrame: DataFrame with added cluster name, properties, and parsed item properties.
+        """
+        cluster_name = self.get_cluster_name(cluster_sample)
+        cluster_prop = self.get_cluster_properties(cluster_sample, cluster_name)
 
-            items_jsons = []
-            for item in answer.iter_rows(named=True):
-                item_prop = self.parse_product_properties(item, cluster_prop, cluster_name)
-                items_jsons.append(item_prop)
+        answer = cluster_sample.with_columns(
+            pl.lit(cluster_name).alias("cluster_name"), pl.lit(cluster_prop).alias("cluster_properties")
+        )
 
-            group = answer.with_columns(pl.Series(items_jsons).alias("parsed_item_properties"))
+        items_jsons = []
+        for item in answer.iter_rows(named=True):
+            item_prop = self.parse_product_properties(item, cluster_prop, cluster_name)
+            items_jsons.append(item_prop)
 
-            products = []
-            for row in group.iter_rows(named=True):
-                product = {}
-                product["код СКМТР"] = row["код СКМТР"]
-                product["Наименование"] = row["Наименование"]
-                product["Маркировка"] = row["Маркировка"]
-                product["Группа"] = row["cluster_name"]
-                product["ОКПД2"] = row["ОКПД2"]
-                product.update(json.loads(row["parsed_item_properties"]))
-                products.append(product)
+        group = answer.with_columns(pl.Series(items_jsons).alias("parsed_item_properties"))
 
-            return pl.DataFrame(products).fill_null("NODATA")
+        products = []
+        for row in group.iter_rows(named=True):
+            product = {}
+            product["код СКМТР"] = row["код СКМТР"]
+            product["Наименование"] = row["Наименование"]
+            product["Маркировка"] = row["Маркировка"]
+            product["Группа"] = row["cluster_name"]
+            product["ОКПД2"] = row["ОКПД2"]
+            product.update(json.loads(row["parsed_item_properties"]))
+            products.append(product)
 
-        def process_okpd(self, okpd_ident: str) -> pl.DataFrame:
-            """Process all clusters for a given OKPD2 identifier.
+        return pl.DataFrame(products).fill_null("NODATA")
 
-            Args:
-                okpd_ident (str): The OKPD2 identifier to process.
+    def process_okpd(self, okpd_ident: str) -> pl.DataFrame:
+        """Process all clusters for a given OKPD2 identifier.
 
-            Returns:
-                pl.DataFrame: DataFrame containing the processed clusters for the given OKPD2 identifier.
-            """
-            okpd_df = self.cluster_pipe.full_data_clustered.filter(pl.col("ОКПД2") == okpd_ident)
+        Args:
+            okpd_ident (str): The OKPD2 identifier to process.
 
-            unique_clusters = okpd_df["cluster"].unique()
+        Returns:
+            pl.DataFrame: DataFrame containing the processed clusters for the given OKPD2 identifier.
+        """
+        okpd_df = self.cluster_pipe.full_data_clustered.filter(pl.col("ОКПД2") == okpd_ident)
 
-            for c, cluster_id in enumerate(unique_clusters):
-                cluster_sample = self.cluster_pipe.sample_cluster(cluster_id, okpd_ident)
-                processed_cluster = self.cluster_process(cluster_sample)
+        unique_clusters = okpd_df["cluster"].unique()
 
-                full_data = processed_cluster if c == 0 else pl.concat([full_data, processed_cluster], how="vertical")
+        for c, cluster_id in enumerate(unique_clusters):
+            cluster_sample = self.cluster_pipe.sample_cluster(cluster_id, okpd_ident)
+            processed_cluster = self.cluster_process(cluster_sample)
 
-            return full_data
+            full_data = processed_cluster if c == 0 else pl.concat([full_data, processed_cluster], how="vertical")
+
+        return full_data
+
+
+cluster_pipe = ClusterPipe(mtr_path="./data/MTR.parquet", labels_path="./data/df_imputed_filled_labels.parquet")
+cluster_pipe.load_data()
+cluster_pipe.prepare_texts()
+cluster_pipe.get_embeddings()
+cluster_pipe.save_embeddings("./data/e5_small_emb.parquet")  # это нужно скачать с gdrive
+cluster_pipe.load_embeddings("./data/e5_small_emb.parquet")
+cluster_pipe.prepare_for_clustering()
+cluster_pipe.encode_labels("./data/label_encoder_e5_clusters.pkl")
+cluster_pipe.impute_missing_values()
+cluster_pipe.cluster_data("./data/e5_small_clusters_v2.parquet", "./data/label_encoder_e5_clusters.pkl")
+cluster_pipe.load_clustered_data("./data/e5_small_clustered_data_v2.parquet")
+
+model_name = "IlyaGusev/saiga_gemma2_9b"
+llm = LLM(model_name)
+
+pipe = PipelineManager(cluster_pipe, llm)
+
+cluster_sample = pipe.get_cluster(9, "10.20.25.190")
+cluster_name = pipe.get_cluster_name(cluster_sample)
+cluster_prop = pipe.get_cluster_properties(cluster_sample, cluster_name)
+item_prop = pipe.parse_product_properties(cluster_sample.head(1).to_dicts()[0], cluster_prop, cluster_name)
+
+print(cluster_name)
+print(cluster_prop)
+print(item_prop)
+
+cluster_sample = pipe.get_cluster(9, "10.20.25.190")
+pipe.cluster_process(cluster_sample).write_excel("./results/answer_dump.xlsx")

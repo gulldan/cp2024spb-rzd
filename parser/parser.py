@@ -209,7 +209,7 @@ async def scrape_search_results(search_query: str, code: str, num_results: int =
             logging.debug(f"Время запуска браузера: {browser_end_time - browser_start_time:.2f} секунд")
 
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",  # noqa: E501
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
                 locale="ru-RU",
             )
             # Включаем stealth режим
